@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neko Raw API - Manager</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --sidebar-bg: #f7f7f7;
+            --border-color: #e0e0e0;
+            --accent-color: #ff5f56;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* macOS Controls มุมซ้ายบน */
+        .window-controls {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        .mac-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .btn-close { background-color: #ff5f56; border: 1px solid #e0443e; }
+        .btn-minimize { background-color: #ffbd2e; border: 1px solid #dea123; }
+        .btn-maximize { background-color: #27c93f; border: 1px solid #1aab29; }
+
+        /* หน้าจอต่างๆ (Views) */
+        .view {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            box-sizing: border-box;
+            padding-top: 40px;
+        }
+        .view.active {
+            display: flex;
+        }
+
+        /* หน้า Login */
+        #login-view {
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .login-box {
+            background: #fafafa;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            width: 300px;
+            text-align: center;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        .login-box button {
+            width: 100%;
+            padding: 10px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* หน้า Dashboard & Editor */
+        #dashboard-view {
+            flex-direction: row;
+        }
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .sidebar h3 { margin-top: 0; font-size: 16px; }
+        .project-list, .file-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            max-height: 150px;
+        }
+        .project-item, .file-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .project-item:hover, .file-item:hover, .file-item.active {
+            background-color: #e5e5ea;
+        }
+
+        /* สสถานะจุดเปิดปิดในเมนู */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-dot.active { background-color: #27c93f; }
+        .status-dot.inactive { background-color: #ff5f56; }
+
+        .main-editor {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .api-preview {
+            background: #f0f0f0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        /* แผงควบคุมเปิดปิดลิงก์ */
+        .link-control-panel {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fafafa;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 10px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc; transition: .3s; border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #27c93f; }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        textarea {
+            flex-grow: 1;
+            width: 100%;
+            font-family: monospace;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: none;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        .save-btn {
+            padding: 8px 16px;
+            background-color: #27c93f;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .raw-btn {
+            padding: 8px 16px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            line-height: 20px;
+        }
+        .raw-btn.disabled {
+            background-color: #ccc;
+            pointer-events: none;
+        }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #ff5f56;
+            cursor: pointer;
+            text-align: left;
+            padding: 0;
+            font-size: 14px;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ปุ่ม macOS มุมซ้ายบน -->
+    <div class="window-controls">
+        <span class="mac-btn btn-close"></span>
+        <span class="mac-btn btn-minimize"></span>
+        <span class="mac-btn btn-maximize"></span>
+    </div>
+
+    <!-- 1. หน้า Login -->
+    <div id="login-view" class="view active">
+        <div class="login-box">
+            <h2>Neko Hub Login</h2>
+            <input type="text" id="username-input" placeholder="ชื่อผู้ใช้งาน (Username)">
+            <button onclick="handleLogin()">เข้าสู่ระบบ</button>
+        </div>
+    </div>
+
+    <!-- 2. หน้า Dashboard และตัวจัดการไฟล์ -->
+    <div id="dashboard-view" class="view">
+        <div class="sidebar">
+            <h3 id="user-display">ผู้ใช้งาน</h3>
+            <div>
+                <strong>โปรเจกต์</strong>
+                <ul id="project-list" class="project-list">
+                    <li class="project-item" onclick="selectProject('pawsome-hub')">pawsome-hub</li>
+                    <li class="project-item" onclick="selectProject('real-hub')">real-hub</li>
+                </ul>
+            </div>
+            <div>
+                <strong>ไฟล์ในโปรเจกต์</strong>
+                <ul id="file-list" class="file-list">
+                    <li class="file-item" onclick="selectFile('main.lua')">
+                        <span>main.lua</span>
+                        <span id="dot-main.lua" class="status-dot active"></span>
+                    </li>
+                    <li class="file-item" onclick="selectFile('loader.lua')">
+                        <span>loader.lua</span>
+                        <span id="dot-loader.lua" class="status-dot active"></span>
+                    </li>
+                </ul>
+            </div>
+            <button class="logout-btn" onclick="handleLogout()">ออกจากระบบ</button>
+        </div>
+        
+        <div class="main-editor">
+            <div class="editor-header">
+                <div>
+                    <span id="current-file-label" style="font-weight: bold;">เลือกไฟล์เพื่อแก้ไข</span>
+                    <div id="api-path-display" class="api-preview">API: api.neko/get/.../raw/...</div>
+                </div>
+                <div class="btn-group">
+                    <a id="raw-link-btn" class="raw-btn" href="#" target="_blank">เปิด Raw API</a>
+                    <button class="save-btn" onclick="saveFile()">อัปเดตโค้ด</button>
+                </div>
+            </div>
+
+            <!-- แผงควบคุมเปิด/ปิดการเข้าถึงลิงก์ -->
+            <div class="link-control-panel">
+                <label class="switch">
+                    <input type="checkbox" id="link-status-toggle" onchange="toggleLinkStatus()">
+                    <span class="slider"></span>
+                </label>
+                <div>
+                    <strong id="status-text-label">สถานะลิงก์ API: เปิดใช้งาน</strong>
+                    <div style="font-size: 12px; color: #666;">หากปิดการใช้งาน ลิงก์ Raw API นี้จะไม่สามารถเข้าถึงเนื้อหาได้</div>
+                </div>
+            </div>
+
+            <textarea id="file-content" placeholder="แก้ไขโค้ด Lua ที่นี่..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        // ระบบ Login จำการเข้าใช้งาน
+        const currentUser = localStorage.getItem('neko_user');
+        if (currentUser) {
+            showDashboard(currentUser);
+        }
+
+        function handleLogin() {
+            const username = document.getElementById('username-input').value.trim();
+            if (username) {
+                localStorage.setItem('neko_user', username);
+                showDashboard(username);
+            } else {
+                alert('กรุณากรอกชื่อผู้ใช้งาน');
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('neko_user');
+            document.getElementById('dashboard-view').classList.remove('active');
+            document.getElementById('login-view').classList.add('active');
+        }
+
+        function showDashboard(username) {
+            document.getElementById('user-display').innerText = `ผู้ใช้งาน: ${username}`;
+            document.getElementById('login-view').classList.remove('active');
+            document.getElementById('dashboard-view').classList.add('active');
+        }
+
+        // ฐานข้อมูลไฟล์จำลอง (เพิ่มสถานะ enabled: true/false)
+        let currentProject = 'pawsome-hub';
+        let currentFile = 'main.lua';
+
+        const fileStorage = {
+            'pawsome-hub': {
+                'main.lua': {
+                    content: '-- Pawsome Hub Main Script\nprint("Neko API Active!");',
+                    enabled: true
+                },
+                'loader.lua': {
+                    content: '-- Loader Script\nloadstring(game:HttpGet("..."))()',
+                    enabled: true
+                }
+            },
+            'real-hub': {
+                'main.lua': {
+                    content: '-- Real Hub Whitelist\nlocal Whitelist = true;',
+                    enabled: true
+                },
+                'loader.lua': {
+                    content: '-- Real Hub UI\nprint("Loading UI...");',
+                    enabled: false
+                }
+            }
+        };
+
+        function selectProject(projectName) {
+            currentProject = projectName;
+            selectFile(currentFile);
+        }
+
+        function selectFile(fileName) {
+            currentFile = fileName;
+            
+            // อัปเดตชื่อและเส้นทาง API
+            const apiPath = `api.neko/get/${currentProject}/raw/${currentFile}`;
+            document.getElementById('current-file-label').innerText = `${currentProject} / ${fileName}`;
+            document.getElementById('api-path-display').innerText = `API Endpoint: ${apiPath}`;
+            
+            // ดึงข้อมูลไฟล์ปัจจุบัน
+            const fileData = fileStorage[currentProject][currentFile];
+            document.getElementById('file-content').value = fileData.content;
+            
+            // ตั้งค่าปุ่มสวิตช์เปิด/ปิด
+            const toggle = document.getElementById('link-status-toggle');
+            toggle.checked = fileData.enabled;
+            updateStatusUI(fileData.enabled);
+            updateRawButton();
+        }
+
+        function toggleLinkStatus() {
+            const toggle = document.getElementById('link-status-toggle');
+            fileStorage[currentProject][currentFile].enabled = toggle.checked;
+            
+            updateStatusUI(toggle.checked);
+            updateRawButton();
+            updateSidebarDots();
+        }
+
+        function updateStatusUI(isEnabled) {
+            const label = document.getElementById('status-text-label');
+            if (isEnabled) {
+                label.innerText = "สถานะลิงก์ API: เปิดใช้งาน (Active)";
+                label.style.color = "#27c93f";
+            } else {
+                label.innerText = "สถานะลิงก์ API: ปิดใช้งาน (Disabled)";
+                label.style.color = "#ff5f56";
+            }
+        }
+
+        function updateSidebarDots() {
+            // อัปเดตจุดสีสถานะข้างชื่อไฟล์ในเมนูด้านซ้าย
+            const fileData = fileStorage[currentProject][currentFile];
+            const dot = document.getElementById(`dot-${currentFile}`);
+            if (dot) {
+                dot.className = `status-dot ${fileData.enabled ? 'active' : 'inactive'}`;
+            }
+        }
+
+        function updateRawButton() {
+            const rawBtn = document.getElementById('raw-link-btn');
+            const fileData = fileStorage[currentProject][currentFile];
+
+            if (!fileData.enabled) {
+                // ถ้าปิดลิงก์ ให้กดไม่ได้ และเปลี่ยนหน้าแสดงผลเป็นแจ้งเตือนปิดใช้งาน
+                rawBtn.classList.add('disabled');
+                const errorBlob = new Blob(['Error 403: This Raw API link has been disabled by the owner.'], { type: 'text/plain;charset=utf-8' });
+                rawBtn.href = URL.createObjectURL(errorBlob);
+            } else {
+                rawBtn.classList.remove('disabled');
+                const blob = new Blob([fileData.content], { type: 'text/plain;charset=utf-8' });
+                rawBtn.href = URL.createObjectURL(blob);
+            }
+        }
+
+        function saveFile() {
+            const updatedContent = document.getElementById('file-content').value;
+            fileStorage[currentProject][currentFile].content = updatedContent;
+            updateRawButton();
+            alert(`อัปเดตไฟล์ ${currentFile} สำเร็จ!`);
+        }
+
+        // โหลดค่าเริ่มต้น
+        selectFile('main.lua');
+    </script>
+</body>
+</html>
