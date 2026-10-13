@@ -1,29 +1,47 @@
+<!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neko Raw API - Manager</title>
+    <title>Neko Raw API - Dark Snow Manager</title>
     <style>
         :root {
-            --bg-color: #ffffff;
-            --text-color: #333333;
-            --sidebar-bg: #f7f7f7;
-            --border-color: #e0e0e0;
-            --accent-color: #ff5f56;
+            --bg-main: #121214;
+            --bg-sidebar: #1a1a1e;
+            --bg-card: #23232a;
+            --bg-input: #18181c;
+            --text-primary: #f0f0f5;
+            --text-muted: #8e8e99;
+            --border-color: #2e2e38;
+            --accent-green: #27c93f;
+            --accent-red: #ff5f56;
+            --accent-blue: #3b82f6;
         }
 
         body {
             margin: 0;
             height: 100vh;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            background-color: var(--bg-main);
+            color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            position: relative;
         }
 
-        /* macOS Controls มุมซ้ายบน */
+        /* ----- Snow Canvas (เอฟเฟกต์หิมะตก) ----- */
+        #snow-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* ----- macOS Window Controls มุมซ้ายบน ----- */
         .window-controls {
             position: absolute;
             top: 16px;
@@ -42,60 +60,574 @@
         .btn-minimize { background-color: #ffbd2e; border: 1px solid #dea123; }
         .btn-maximize { background-color: #27c93f; border: 1px solid #1aab29; }
 
-        /* หน้าจอต่างๆ (Views) */
+        /* ----- Main Layout ----- */
         .view {
             display: none;
             width: 100%;
             height: 100vh;
             box-sizing: border-box;
             padding-top: 40px;
+            position: relative;
+            z-index: 10;
         }
-        .view.active {
-            display: flex;
-        }
+        .view.active { display: flex; }
 
-        /* หน้า Login */
+        /* Login Screen */
         #login-view {
             justify-content: center;
             align-items: center;
             flex-direction: column;
         }
         .login-box {
-            background: #fafafa;
-            padding: 30px;
+            background: var(--bg-card);
+            padding: 32px;
             border-radius: 12px;
             border: 1px solid var(--border-color);
-            width: 300px;
+            width: 320px;
             text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
+        .login-box h2 { margin-top: 0; font-size: 20px; color: var(--text-primary); }
         .login-box input {
             width: 100%;
-            padding: 10px;
-            margin: 10px 0;
+            padding: 10px 12px;
+            margin: 14px 0;
+            background: var(--bg-input);
             border: 1px solid var(--border-color);
             border-radius: 6px;
+            color: #fff;
             box-sizing: border-box;
         }
         .login-box button {
             width: 100%;
             padding: 10px;
-            background-color: #333;
+            background-color: var(--accent-blue);
             color: white;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            transition: opacity 0.2s;
         }
+        .login-box button:hover { opacity: 0.9; }
 
-        /* หน้า Dashboard & Editor */
-        #dashboard-view {
-            flex-direction: row;
-        }
+        /* Dashboard & Editor Screen */
+        #dashboard-view { flex-direction: row; }
         .sidebar {
-            width: 260px;
-            background-color: var(--sidebar-bg);
+            width: 280px;
+            background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border-color);
             padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
+        }
+        .user-header {
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--accent-blue);
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .add-btn {
+            background: none;
+            border: none;
+            color: var(--accent-blue);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 0 4px;
+        }
+        .project-list, .file-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            max-height: 180px;
+        }
+        .project-item, .file-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .project-item:hover, .file-item:hover, .project-item.active, .file-item.active {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-dot.active { background-color: var(--accent-green); }
+        .status-dot.inactive { background-color: var(--accent-red); }
+
+        .main-editor {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            background-color: var(--bg-main);
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .api-preview {
+            background: var(--bg-card);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--accent-blue);
+            margin-top: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* สวิตช์เปิด/ปิด ลิงก์ API */
+        .link-control-panel {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-card);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 14px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #444; transition: .3s; border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--accent-green); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        textarea {
+            flex-grow: 1;
+            width: 100%;
+            font-family: 'Fira Code', monospace, sans-serif;
+            padding: 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: #4ade80;
+            resize: none;
+            font-size: 14px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .btn-group { display: flex; gap: 10px; }
+        .save-btn {
+            padding: 8px 16px;
+            background-color: var(--accent-green);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .raw-btn {
+            padding: 8px 16px;
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            line-height: 20px;
+        }
+        .raw-btn.disabled {
+            background-color: #444;
+            color: #888;
+            pointer-events: none;
+        }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: var(--accent-red);
+            cursor: pointer;
+            text-align: left;
+            padding: 0;
+            font-size: 14px;
+            margin-top: auto;
+        }
+        .empty-state {
+            color: var(--text-muted);
+            font-size: 13px;
+            font-style: italic;
+            padding: 8px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Snow Animation Canvas -->
+    <canvas id="snow-canvas"></canvas>
+
+    <!-- macOS Control Buttons -->
+    <div class="window-controls">
+        <span class="mac-btn btn-close"></span>
+        <span class="mac-btn btn-minimize"></span>
+        <span class="mac-btn btn-maximize"></span>
+    </div>
+
+    <!-- 1. Login View -->
+    <div id="login-view" class="view active">
+        <div class="login-box">
+            <h2>Neko Hub Login</h2>
+            <input type="text" id="username-input" placeholder="ชื่อผู้ใช้งาน (Username)">
+            <button onclick="handleLogin()">เข้าสู่ระบบ</button>
+        </div>
+    </div>
+
+    <!-- 2. Dashboard View -->
+    <div id="dashboard-view" class="view">
+        <div class="sidebar">
+            <div id="user-display" class="user-header">ผู้ใช้งาน</div>
+            
+            <div>
+                <div class="section-header">
+                    <span>โปรเจกต์</span>
+                    <button class="add-btn" onclick="addNewProject()" title="สร้างโปรเจกต์ใหม่">+</button>
+                </div>
+                <ul id="project-list" class="project-list"></ul>
+            </div>
+
+            <div>
+                <div class="section-header">
+                    <span>ไฟล์ในโปรเจกต์</span>
+                    <button class="add-btn" onclick="addNewFile()" title="สร้างไฟล์ใหม่">+</button>
+                </div>
+                <ul id="file-list" class="file-list"></ul>
+            </div>
+
+            <button class="logout-btn" onclick="handleLogout()">ออกจากระบบ</button>
+        </div>
+        
+        <div class="main-editor">
+            <div class="editor-header">
+                <div>
+                    <span id="current-file-label" style="font-weight: bold; font-size: 16px;">กรุณาเลือกหรือสร้างโปรเจกต์</span>
+                    <div id="api-path-display" class="api-preview">API: api.neko/get/.../raw/...</div>
+                </div>
+                <div class="btn-group">
+                    <a id="raw-link-btn" class="raw-btn" href="#" target="_blank">เปิด Raw API</a>
+                    <button class="save-btn" onclick="saveFile()">บันทึกโค้ด</button>
+                </div>
+            </div>
+
+            <!-- Control Switch -->
+            <div class="link-control-panel">
+                <label class="switch">
+                    <input type="checkbox" id="link-status-toggle" onchange="toggleLinkStatus()">
+                    <span class="slider"></span>
+                </label>
+                <div>
+                    <strong id="status-text-label" style="font-size: 14px;">สถานะลิงก์ API: เปิดใช้งาน</strong>
+                    <div style="font-size: 12px; color: var(--text-muted);">หากปิดการใช้งาน ลิงก์ Raw API นี้จะไม่สามารถเข้าถึงเนื้อหาได้</div>
+                </div>
+            </div>
+
+            <textarea id="file-content" placeholder="เลือกไฟล์ทางซ้าย หรือกดปุ่ม + เพื่อสร้างไฟล์ใหม่..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        /* ----- Snow Animation Logic ----- */
+        const canvas = document.getElementById('snow-canvas');
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        const flakes = Array.from({ length: 70 }, () => ({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            r: Math.random() * 3 + 1,
+            d: Math.random() * 1 + 0.5
+        }));
+
+        function drawSnow() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            flakes.forEach(f => {
+                ctx.moveTo(f.x, f.y);
+                ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+            });
+            ctx.fill();
+            updateSnow();
+        }
+
+        function updateSnow() {
+            flakes.forEach(f => {
+                f.y += f.d;
+                f.x += Math.sin(f.y / 30) * 0.5;
+                if (f.y > height) {
+                    f.y = 0;
+                    f.x = Math.random() * width;
+                }
+            });
+        }
+        setInterval(drawSnow, 30);
+
+        /* ----- Project & File State Management ----- */
+        const currentUser = localStorage.getItem('neko_user');
+        if (currentUser) {
+            showDashboard(currentUser);
+        }
+
+        function handleLogin() {
+            const username = document.getElementById('username-input').value.trim();
+            if (username) {
+                localStorage.setItem('neko_user', username);
+                showDashboard(username);
+            } else {
+                alert('กรุณากรอกชื่อผู้ใช้งาน');
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('neko_user');
+            document.getElementById('dashboard-view').classList.remove('active');
+            document.getElementById('login-view').classList.add('active');
+        }
+
+        function showDashboard(username) {
+            document.getElementById('user-display').innerText = `👤 ${username}`;
+            document.getElementById('login-view').classList.remove('active');
+            document.getElementById('dashboard-view').classList.add('active');
+            renderProjects();
+        }
+
+        // ฐานข้อมูลเริ่มต้นเป็นว่างเปล่า (ไม่มีตัวอย่างค้างไว้)
+        let fileStorage = JSON.parse(localStorage.getItem('neko_storage')) || {};
+        let currentProject = null;
+        let currentFile = null;
+
+        function saveStorage() {
+            localStorage.setItem('neko_storage', JSON.stringify(fileStorage));
+        }
+
+        function renderProjects() {
+            const pList = document.getElementById('project-list');
+            pList.innerHTML = '';
+            const projects = Object.keys(fileStorage);
+
+            if (projects.length === 0) {
+                pList.innerHTML = '<div class="empty-state">ยังไม่มีโปรเจกต์</div>';
+                renderFiles();
+                return;
+            }
+
+            if (!currentProject || !fileStorage[currentProject]) {
+                currentProject = projects[0];
+            }
+
+            projects.forEach(p => {
+                const li = document.createElement('li');
+                li.className = `project-item ${p === currentProject ? 'active' : ''}`;
+                li.innerText = p;
+                li.onclick = () => {
+                    currentProject = p;
+                    currentFile = null;
+                    renderProjects();
+                };
+                pList.appendChild(li);
+            });
+
+            renderFiles();
+        }
+
+        function renderFiles() {
+            const fList = document.getElementById('file-list');
+            fList.innerHTML = '';
+
+            if (!currentProject || !fileStorage[currentProject]) {
+                fList.innerHTML = '<div class="empty-state">เลือกหรือสร้างโปรเจกต์ก่อน</div>';
+                clearEditor();
+                return;
+            }
+
+            const files = Object.keys(fileStorage[currentProject]);
+            if (files.length === 0) {
+                fList.innerHTML = '<div class="empty-state">ยังไม่มีไฟล์ในโปรเจกต์นี้</div>';
+                clearEditor();
+                return;
+            }
+
+            if (!currentFile || !fileStorage[currentProject][currentFile]) {
+                currentFile = files[0];
+            }
+
+            files.forEach(f => {
+                const fileData = fileStorage[currentProject][f];
+                const li = document.createElement('li');
+                li.className = `file-item ${f === currentFile ? 'active' : ''}`;
+                li.onclick = () => selectFile(f);
+                
+                li.innerHTML = `
+                    <span>${f}</span>
+                    <span class="status-dot ${fileData.enabled ? 'active' : 'inactive'}"></span>
+                `;
+                fList.appendChild(li);
+            });
+
+            selectFile(currentFile);
+        }
+
+        function selectFile(fileName) {
+            currentFile = fileName;
+            const fileData = fileStorage[currentProject][fileName];
+            
+            document.getElementById('current-file-label').innerText = `${currentProject} / ${fileName}`;
+            document.getElementById('api-path-display').innerText = `API Endpoint: api.neko/get/${currentProject}/raw/${fileName}`;
+            document.getElementById('file-content').value = fileData.content;
+            
+            const toggle = document.getElementById('link-status-toggle');
+            toggle.checked = fileData.enabled;
+            
+            updateStatusUI(fileData.enabled);
+            updateRawButton();
+        }
+
+        function clearEditor() {
+            document.getElementById('current-file-label').innerText = 'ยังไม่ได้เลือกไฟล์';
+            document.getElementById('api-path-display').innerText = 'API Endpoint: -';
+            document.getElementById('file-content').value = '';
+            document.getElementById('link-status-toggle').checked = false;
+            updateStatusUI(false);
+            updateRawButton();
+        }
+
+        function addNewProject() {
+            const name = prompt('กรุณาตั้งชื่อโปรเจกต์ใหม่:');
+            if (name && name.trim()) {
+                const cleanName = name.trim().toLowerCase().replace(/\s+/g, '-');
+                if (!fileStorage[cleanName]) {
+                    fileStorage[cleanName] = {};
+                    currentProject = cleanName;
+                    currentFile = null;
+                    saveStorage();
+                    renderProjects();
+                } else {
+                    alert('มีโปรเจกต์ชื่อนี้อยู่แล้ว');
+                }
+            }
+        }
+
+        function addNewFile() {
+            if (!currentProject) {
+                alert('กรุณาสร้างโปรเจกต์ก่อนสร้างไฟล์');
+                return;
+            }
+            const name = prompt('กรุณาตั้งชื่อไฟล์ (เช่น main.lua):');
+            if (name && name.trim()) {
+                const cleanName = name.trim();
+                if (!fileStorage[currentProject][cleanName]) {
+                    fileStorage[currentProject][cleanName] = {
+                        content: `-- ${cleanName}\nprint("Loaded ${cleanName}");`,
+                        enabled: true
+                    };
+                    currentFile = cleanName;
+                    saveStorage();
+                    renderFiles();
+                } else {
+                    alert('มีไฟล์ชื่อนี้อยู่แล้วในโปรเจกต์');
+                }
+            }
+        }
+
+        function toggleLinkStatus() {
+            if (!currentProject || !currentFile) return;
+            const toggle = document.getElementById('link-status-toggle');
+            fileStorage[currentProject][currentFile].enabled = toggle.checked;
+            
+            saveStorage();
+            updateStatusUI(toggle.checked);
+            updateRawButton();
+            renderFiles();
+        }
+
+        function updateStatusUI(isEnabled) {
+            const label = document.getElementById('status-text-label');
+            if (isEnabled) {
+                label.innerText = "สถานะลิงก์ API: เปิดใช้งาน (Active)";
+                label.style.color = "var(--accent-green)";
+            } else {
+                label.innerText = "สถานะลิงก์ API: ปิดใช้งาน (Disabled)";
+                label.style.color = "var(--accent-red)";
+            }
+        }
+
+        function updateRawButton() {
+            const rawBtn = document.getElementById('raw-link-btn');
+            if (!currentProject || !currentFile) {
+                rawBtn.classList.add('disabled');
+                return;
+            }
+
+            const fileData = fileStorage[currentProject][currentFile];
+            if (!fileData || !fileData.enabled) {
+                rawBtn.classList.add('disabled');
+                const errorBlob = new Blob(['Error 403: This Raw API link has been disabled by the owner.'], { type: 'text/plain;charset=utf-8' });
+                rawBtn.href = URL.createObjectURL(errorBlob);
+            } else {
+                rawBtn.classList.remove('disabled');
+                const blob = new Blob([fileData.content], { type: 'text/plain;charset=utf-8' });
+                rawBtn.href = URL.createObjectURL(blob);
+            }
+        }
+
+        function saveFile() {
+            if (!currentProject || !currentFile) {
+                alert('กรุณาเลือกไฟล์ก่อนบันทึก');
+                return;
+            }
+            const updatedContent = document.getElementById('file-content').value;
+            fileStorage[currentProject][currentFile].content = updatedContent;
+            saveStorage();
+            updateRawButton();
+            alert(`บันทึกไฟล์ ${currentFile} สำเร็จ!`);
+        }
+    </script>
+</body>
+</html>
